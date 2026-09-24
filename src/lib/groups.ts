@@ -30,12 +30,13 @@ export async function createGroup(name: string, userId: string): Promise<GroupRo
 
 export async function joinGroupByCode(code: string, userId: string): Promise<GroupRow> {
   const normalized = code.trim().toUpperCase();
-  const { data: group, error: findError } = await supabase
-    .from('groups')
-    .select('*')
-    .eq('invite_code', normalized)
-    .single();
+  // Usa uma função security definer em vez de select direto: um não-membro
+  // não tem permissão de RLS para ler a tabela groups antes de se juntar.
+  const { data: matches, error: findError } = await supabase.rpc('get_group_by_invite_code', {
+    p_code: normalized,
+  });
 
+  const group = matches?.[0];
   if (findError || !group) {
     throw new Error('Não encontrámos nenhum grupo com esse código.');
   }
@@ -51,10 +52,15 @@ export async function joinGroupByCode(code: string, userId: string): Promise<Gro
   return group;
 }
 
-export async function listMyGroups(): Promise<GroupWithMemberCount[]> {
+export async function listMyGroups(userId: string): Promise<GroupWithMemberCount[]> {
+  // A policy de RLS de group_members devolve as linhas de TODOS os membros
+  // dos grupos onde estás (necessário para listGroupMembers); por isso o
+  // filtro por user_id tem de ser explícito aqui, ou grupos partilhados
+  // aparecem duplicados (uma linha por cada membro).
   const { data, error } = await supabase
     .from('group_members')
     .select('groups(*, group_members(count))')
+    .eq('user_id', userId)
     .order('joined_at', { ascending: false });
 
   if (error) throw error;

@@ -177,6 +177,24 @@ as $$
   select group_id from public.swipe_sessions where id = p_session_id;
 $$;
 
+-- Permite a quem ainda NÃO é membro encontrar um grupo pelo código de
+-- convite (a policy de SELECT de groups só deixa ver quem já é membro ou
+-- o criador). Só devolve algo se o código coincidir exatamente — não dá
+-- para listar/enumerar grupos.
+create or replace function public.get_group_by_invite_code(p_code text)
+returns table (id uuid, name text, invite_code text, created_by uuid, created_at timestamptz)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select id, name, invite_code, created_by, created_at
+  from public.groups
+  where invite_code = p_code;
+$$;
+
+grant execute on function public.get_group_by_invite_code(text) to authenticated;
+
 -- ============================================================================
 -- TRIGGERS DE AUTOMAÇÃO
 -- ============================================================================
@@ -307,8 +325,11 @@ create policy "users_update_self" on public.users for update
   using (id = auth.uid());
 
 -- groups: só membros veem/gerem
+-- (created_by = auth.uid() está incluído porque o RETURNING do INSERT é
+-- avaliado antes do trigger on_group_created correr, logo o criador ainda
+-- não consta em group_members nesse instante)
 create policy "groups_select_member" on public.groups for select
-  using (public.is_group_member(id));
+  using (public.is_group_member(id) or created_by = auth.uid());
 
 create policy "groups_insert_own" on public.groups for insert
   with check (created_by = auth.uid());

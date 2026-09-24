@@ -43,9 +43,13 @@ export default function GroupDetailScreen({ route, navigation }: Screen<'GroupDe
   async function handleInvite() {
     if (!group) return;
     const link = Linking.createURL(`join/${group.invite_code}`);
-    await Share.share({
-      message: `Junta-te ao grupo "${group.name}" no Onde Vamos! Código: ${group.invite_code}\n${link}`,
-    });
+    try {
+      await Share.share({
+        message: `Junta-te ao grupo "${group.name}" no Onde Vamos! Código: ${group.invite_code}\n${link}`,
+      });
+    } catch (e) {
+      console.warn('Não foi possível abrir o menu de partilha:', e);
+    }
   }
 
   function goToSession(session: SwipeSessionRow) {

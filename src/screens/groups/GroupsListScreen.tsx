@@ -22,14 +22,15 @@ export default function GroupsListScreen({ navigation }: Screen<'GroupsList'>) {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    if (!session) return;
     try {
-      const data = await listMyGroups();
+      const data = await listMyGroups(session.user.id);
       setGroups(data);
     } catch (e) {
       console.warn('Erro ao carregar grupos:', e);
       setGroups([]);
     }
-  }, []);
+  }, [session]);
 
   useFocusEffect(
     useCallback(() => {
